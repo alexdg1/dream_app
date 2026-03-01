@@ -25,6 +25,12 @@ function buildFallbackAnalysis(dream, reason) {
   return {
     source: 'local-fallback',
     fallbackReason: reason,
+    debug: {
+      hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
+      hasOpenAiModel: Boolean(process.env.OPENAI_MODEL),
+      vercelEnv: process.env.VERCEL_ENV || 'unknown',
+      vercelUrl: process.env.VERCEL_URL || 'unknown',
+    },
     primaryLens: local.lens,
     secondaryLens: local.secondaryLens || 'Known-person inner-figure lens',
     confidence: local.routeConfidence || 'medium',
