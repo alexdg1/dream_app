@@ -160,6 +160,31 @@ function TabBar({ activeTab, setActiveScreen }) {
   );
 }
 
+function MobileScreenNav({ activeScreen, setActiveScreen }) {
+  const mobileLinks = [
+    { id: 'home', label: 'Home' },
+    { id: 'archive', label: 'Archive' },
+    { id: 'dream-detail', label: 'Dream Detail' },
+    { id: 'patterns', label: 'Patterns' },
+    { id: 'weekly-review', label: 'Review' },
+  ];
+
+  return (
+    <nav className="mobile-screen-nav" aria-label="Screen navigation">
+      {mobileLinks.map((link) => (
+        <button
+          key={link.id}
+          type="button"
+          className={`mobile-screen-link ${activeScreen === link.id ? 'active' : ''}`}
+          onClick={() => setActiveScreen(link.id)}
+        >
+          {link.label}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 function HomeScreen({ setActiveScreen }) {
   return (
     <div className="screen-shell">
@@ -1128,6 +1153,7 @@ export default function DreamSupportApp() {
             <span>9:41</span>
             <span>Dream Support</span>
           </header>
+          <MobileScreenNav activeScreen={activeScreen} setActiveScreen={setActiveScreen} />
           <section className={`screen ${activeTab}`}>{content}</section>
           <TabBar activeTab={activeTab} setActiveScreen={setActiveScreen} />
         </div>
