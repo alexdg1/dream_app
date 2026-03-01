@@ -45,6 +45,80 @@ function buildFallbackAnalysis(dream, reason) {
   };
 }
 
+async function requestStructuredAnalysis(apiKey, dream) {
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+      input: [
+        { role: 'system', content: [{ type: 'input_text', text: buildDreamAnalysisInstructions() }] },
+        { role: 'user', content: [{ type: 'input_text', text: buildDreamAnalysisInput(dream) }] },
+      ],
+      text: {
+        format: {
+          type: 'json_schema',
+          ...analysisJsonSchema,
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Structured output request failed: ${response.status} ${errorText}`);
+  }
+
+  const payload = await response.json();
+  const text = extractResponseText(payload);
+  if (!text) throw new Error('Structured output returned no text.');
+  return JSON.parse(text);
+}
+
+async function requestJsonModeAnalysis(apiKey, dream) {
+  const schemaKeys = Object.keys(analysisJsonSchema.schema.properties).join(', ');
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+      input: [
+        {
+          role: 'system',
+          content: [
+            {
+              type: 'input_text',
+              text: `${buildDreamAnalysisInstructions()}\nReturn valid JSON only. Use exactly these top-level keys: ${schemaKeys}.`,
+            },
+          ],
+        },
+        { role: 'user', content: [{ type: 'input_text', text: buildDreamAnalysisInput(dream) }] },
+      ],
+      text: {
+        format: {
+          type: 'json_object',
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`JSON mode request failed: ${response.status} ${errorText}`);
+  }
+
+  const payload = await response.json();
+  const text = extractResponseText(payload);
+  if (!text) throw new Error('JSON mode returned no text.');
+  return JSON.parse(text);
+}
+
 export async function POST(request) {
   let body;
   try {
@@ -64,42 +138,26 @@ export async function POST(request) {
   }
 
   try {
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
-        input: [
-          { role: 'system', content: [{ type: 'input_text', text: buildDreamAnalysisInstructions() }] },
-          { role: 'user', content: [{ type: 'input_text', text: buildDreamAnalysisInput(dream) }] },
-        ],
-        text: {
-          format: {
-            type: 'json_schema',
-            ...analysisJsonSchema,
-          },
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return NextResponse.json({ analysis: buildFallbackAnalysis(dream, `OpenAI request failed: ${response.status} ${errorText}`) });
+    let analysis;
+    let sourceMode = 'openai-structured';
+    try {
+      analysis = await requestStructuredAnalysis(apiKey, dream);
+    } catch (structuredError) {
+      try {
+        analysis = await requestJsonModeAnalysis(apiKey, dream);
+        sourceMode = 'openai-json-mode';
+      } catch (jsonModeError) {
+        const combinedReason = [
+          structuredError instanceof Error ? structuredError.message : 'Structured output failed.',
+          jsonModeError instanceof Error ? jsonModeError.message : 'JSON mode failed.',
+        ].join(' | ');
+        return NextResponse.json({ analysis: buildFallbackAnalysis(dream, combinedReason) });
+      }
     }
 
-    const payload = await response.json();
-    const text = extractResponseText(payload);
-    if (!text) {
-      return NextResponse.json({ analysis: buildFallbackAnalysis(dream, 'OpenAI returned no structured text output.') });
-    }
-
-    const analysis = JSON.parse(text);
     return NextResponse.json({
       analysis: {
-        source: 'openai',
+        source: sourceMode,
         ...analysis,
       },
     });
