@@ -592,12 +592,6 @@ function DreamDetailScreen({ dream, setActiveScreen, onEditDream, onUpdateFollow
           <h3>{dream.aiAnalysis.primaryLens}</h3>
           <p><strong>Source:</strong> {dream.aiAnalysis.source}</p>
           {dream.aiAnalysis.fallbackReason ? <p><strong>Fallback reason:</strong> {dream.aiAnalysis.fallbackReason}</p> : null}
-          {dream.aiAnalysis.debug ? (
-            <p>
-              <strong>Debug:</strong>{' '}
-              key={String(dream.aiAnalysis.debug.hasOpenAiKey)}, model={String(dream.aiAnalysis.debug.hasOpenAiModel)}, env={dream.aiAnalysis.debug.vercelEnv}, url={dream.aiAnalysis.debug.vercelUrl}
-            </p>
-          ) : null}
           <p>{dream.aiAnalysis.routeReason}</p>
           <p><strong>Secondary lens:</strong> {dream.aiAnalysis.secondaryLens}. <strong>Confidence:</strong> {dream.aiAnalysis.confidence}.</p>
           <p><strong>{dream.aiAnalysis.headline}</strong></p>
