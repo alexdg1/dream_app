@@ -35,6 +35,10 @@ body::before {
     linear-gradient(180deg, rgba(255,255,255,0.16), transparent 17%, transparent 84%, rgba(18,24,23,0.04));
 }
 button, input, textarea, select { font: inherit; }
+button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
 .app-shell {
   max-width: 1480px;
   margin: 0 auto;
@@ -85,11 +89,13 @@ button, input, textarea, select { font: inherit; }
   display: none;
   gap: 8px;
   padding: 12px 18px 0;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  flex-wrap: wrap;
+  overflow: visible;
+  position: relative;
+  z-index: 3;
 }
 .mobile-screen-link {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   border: 1px solid var(--line);
   background: rgba(255,255,255,0.62);
   color: var(--ink);
