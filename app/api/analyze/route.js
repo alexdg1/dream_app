@@ -5,7 +5,7 @@ import { buildDreamAnalysisInput, buildDreamAnalysisInstructions } from '../../.
 
 export const runtime = 'nodejs';
 
-function extractResponseText(payload) {
+function extractOpenAiResponseText(payload) {
   if (typeof payload.output_text === 'string' && payload.output_text) return payload.output_text;
 
   const texts = [];
@@ -20,17 +20,20 @@ function extractResponseText(payload) {
   return texts.join('\n').trim();
 }
 
-function buildFallbackAnalysis(dream, reason) {
+function extractClaudeResponseText(payload) {
+  const texts = [];
+  for (const block of payload.content || []) {
+    if (block.type === 'text' && block.text) texts.push(block.text);
+  }
+  return texts.join('\n').trim();
+}
+
+function buildFallbackAnalysis(dream, reason, provider = 'openai') {
   const local = deriveInterpretation(dream);
   return {
     source: 'local-fallback',
+    provider,
     fallbackReason: reason,
-    debug: {
-      hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
-      hasOpenAiModel: Boolean(process.env.OPENAI_MODEL),
-      vercelEnv: process.env.VERCEL_ENV || 'unknown',
-      vercelUrl: process.env.VERCEL_URL || 'unknown',
-    },
     primaryLens: local.lens,
     secondaryLens: local.secondaryLens || 'Known-person inner-figure lens',
     confidence: local.routeConfidence || 'medium',
@@ -38,6 +41,14 @@ function buildFallbackAnalysis(dream, reason) {
     routeEvidence: local.routeEvidence || [],
     headline: local.headline,
     atmosphere: dream.prevailingEmotion,
+    governingField: `The dream is organized around ${dream.prevailingEmotion || 'an emotionally charged field'} rather than around symbol labels alone.`,
+    decisiveTurn: dream.reentry?.affectShift || 'The dream’s key turn should be clarified through slower replay.',
+    endingReading: `The ending reads as ${dream.endingResolution || 'still unresolved'}, which suggests the process remains active.`,
+    reading: [
+      local.headline,
+      `The prevailing emotion appears to be ${dream.prevailingEmotion || 'emotionally mixed'}, and the ending reads as ${dream.endingResolution || 'still open'}.`,
+      'Treat this as a working scaffold rather than a final interpretation.',
+    ].join(' '),
     observations: local.observations,
     hypotheses: local.hypotheses,
     disconfirmingCues: [
@@ -51,7 +62,7 @@ function buildFallbackAnalysis(dream, reason) {
   };
 }
 
-async function requestStructuredAnalysis(apiKey, dream) {
+async function requestOpenAiStructuredAnalysis(apiKey, dream, model) {
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: {
@@ -59,7 +70,7 @@ async function requestStructuredAnalysis(apiKey, dream) {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+      model,
       input: [
         { role: 'system', content: [{ type: 'input_text', text: buildDreamAnalysisInstructions() }] },
         { role: 'user', content: [{ type: 'input_text', text: buildDreamAnalysisInput(dream) }] },
@@ -79,12 +90,12 @@ async function requestStructuredAnalysis(apiKey, dream) {
   }
 
   const payload = await response.json();
-  const text = extractResponseText(payload);
+  const text = extractOpenAiResponseText(payload);
   if (!text) throw new Error('Structured output returned no text.');
   return JSON.parse(text);
 }
 
-async function requestJsonModeAnalysis(apiKey, dream) {
+async function requestOpenAiJsonModeAnalysis(apiKey, dream, model) {
   const schemaKeys = Object.keys(analysisJsonSchema.schema.properties).join(', ');
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
@@ -93,7 +104,7 @@ async function requestJsonModeAnalysis(apiKey, dream) {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+      model,
       input: [
         {
           role: 'system',
@@ -120,9 +131,60 @@ async function requestJsonModeAnalysis(apiKey, dream) {
   }
 
   const payload = await response.json();
-  const text = extractResponseText(payload);
+  const text = extractOpenAiResponseText(payload);
   if (!text) throw new Error('JSON mode returned no text.');
   return JSON.parse(text);
+}
+
+async function requestClaudeAnalysis(apiKey, dream, model) {
+  const schemaKeys = Object.keys(analysisJsonSchema.schema.properties).join(', ');
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 1800,
+      system: `${buildDreamAnalysisInstructions()}\nReturn valid JSON only. Use exactly these top-level keys: ${schemaKeys}.`,
+      messages: [
+        {
+          role: 'user',
+          content: buildDreamAnalysisInput(dream),
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Claude request failed: ${response.status} ${errorText}`);
+  }
+
+  const payload = await response.json();
+  const text = extractClaudeResponseText(payload);
+  if (!text) throw new Error('Claude returned no text.');
+  return JSON.parse(text);
+}
+
+function getProviderConfig(requestedProvider) {
+  const provider = requestedProvider === 'claude' ? 'claude' : 'openai';
+
+  if (provider === 'claude') {
+    return {
+      provider,
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+    };
+  }
+
+  return {
+    provider: 'openai',
+    apiKey: process.env.OPENAI_API_KEY,
+    model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+  };
 }
 
 export async function POST(request) {
@@ -138,38 +200,55 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Dream payload is required.' }, { status: 400 });
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ analysis: buildFallbackAnalysis(dream, 'OPENAI_API_KEY is not configured.') });
+  const providerConfig = getProviderConfig(body?.provider);
+  if (!providerConfig.apiKey) {
+    const missingName = providerConfig.provider === 'claude' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
+    return NextResponse.json({ analysis: buildFallbackAnalysis(dream, `${missingName} is not configured.`, providerConfig.provider) });
   }
 
   try {
+    if (providerConfig.provider === 'claude') {
+      const analysis = await requestClaudeAnalysis(providerConfig.apiKey, dream, providerConfig.model);
+      return NextResponse.json({
+        analysis: {
+          source: 'claude-json',
+          provider: 'claude',
+          ...analysis,
+        },
+      });
+    }
+
     let analysis;
     let sourceMode = 'openai-structured';
     try {
-      analysis = await requestStructuredAnalysis(apiKey, dream);
+      analysis = await requestOpenAiStructuredAnalysis(providerConfig.apiKey, dream, providerConfig.model);
     } catch (structuredError) {
       try {
-        analysis = await requestJsonModeAnalysis(apiKey, dream);
+        analysis = await requestOpenAiJsonModeAnalysis(providerConfig.apiKey, dream, providerConfig.model);
         sourceMode = 'openai-json-mode';
       } catch (jsonModeError) {
         const combinedReason = [
           structuredError instanceof Error ? structuredError.message : 'Structured output failed.',
           jsonModeError instanceof Error ? jsonModeError.message : 'JSON mode failed.',
         ].join(' | ');
-        return NextResponse.json({ analysis: buildFallbackAnalysis(dream, combinedReason) });
+        return NextResponse.json({ analysis: buildFallbackAnalysis(dream, combinedReason, 'openai') });
       }
     }
 
     return NextResponse.json({
       analysis: {
         source: sourceMode,
+        provider: 'openai',
         ...analysis,
       },
     });
   } catch (error) {
     return NextResponse.json({
-      analysis: buildFallbackAnalysis(dream, error instanceof Error ? error.message : 'Unknown analysis error.'),
+      analysis: buildFallbackAnalysis(
+        dream,
+        error instanceof Error ? error.message : 'Unknown analysis error.',
+        providerConfig.provider,
+      ),
     });
   }
 }

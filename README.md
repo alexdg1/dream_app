@@ -24,7 +24,8 @@ This is now a real app shell rather than a static HTML mockup:
 - therapist-share selection and downloadable bundle export (`.txt` / `.json`)
 - weekly follow-through tracking per dream
 - PWA metadata and installable home-screen shell
-- server-side OpenAI analysis route with local fallback
+- server-side OpenAI-first analysis route with local fallback
+- optional Claude analysis path for side-by-side provider testing
 - mode-specific flow screens for symbolic, grounded, and support-first use cases
 
 ## Run
@@ -37,21 +38,23 @@ npm run dev
 
 Then open `http://localhost:3000`.
 
-## Optional OpenAI analysis
+## Optional model-backed analysis
 
-Set a server-side API key if you want `Dream Detail` to call OpenAI for deeper analysis:
+Set server-side API keys if you want `Dream Detail` to call OpenAI or Claude for deeper analysis:
 
 ```bash
 OPENAI_API_KEY=your_key_here
+ANTHROPIC_API_KEY=your_key_here
 ```
 
 Optional model override:
 
 ```bash
 OPENAI_MODEL=gpt-4.1-mini
+ANTHROPIC_MODEL=claude-sonnet-4-20250514
 ```
 
-Without `OPENAI_API_KEY`, the app falls back to its local rule-based lens engine.
+Without provider API keys, the app falls back to its local rule-based lens engine.
 
 See `/Users/alexdegiorgio/codex/home : health/dream-support-prototype-app/VERCEL_SETUP.md` for the exact Vercel claim + env + redeploy steps.
 
@@ -87,14 +90,14 @@ If you later want App Store distribution, the next step would be a native wrappe
 5. `Re-entry Scene`
 6. `Re-entry Summary`
 7. Save into archive
-8. `Dream Detail` with interpretation + weekly follow-through
+8. `Dream Detail` with local scaffold + provider-backed deeper analysis + weekly follow-through
 9. `Patterns` and `Therapist Share`
 
 ## Current limitations
 
 - no backend or auth
 - no server persistence
-- baseline interpretation is local and rule-based; deeper analysis is optional via OpenAI
-- OpenAI analysis is optional and requires server-side env configuration
+- baseline interpretation is local and rule-based; deeper analysis is optional via OpenAI or Claude
+- model-backed analysis requires server-side env configuration
 - no therapist account model or export transport yet
 - no advanced archive search, tagging ontology, or cross-dream motif clustering yet

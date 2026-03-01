@@ -24,6 +24,29 @@ const emptyFollowThrough = {
   lastUpdated: '',
 };
 
+const analysisProviders = [
+  { id: 'openai', label: 'OpenAI' },
+  { id: 'claude', label: 'Claude' },
+];
+
+const screenOptions = [
+  { id: 'home', label: 'Home' },
+  { id: 'onboarding', label: 'Onboarding' },
+  { id: 'capture', label: 'Capture' },
+  { id: 'known-people', label: 'Known People' },
+  { id: 'reentry-start', label: 'Re-entry Start' },
+  { id: 'reentry-scene', label: 'Re-entry Scene' },
+  { id: 'reentry-summary', label: 'Re-entry Summary' },
+  { id: 'symbolic-flow', label: 'Symbolic Flow' },
+  { id: 'grounded-flow', label: 'Grounded Flow' },
+  { id: 'support-flow', label: 'Support Flow' },
+  { id: 'archive', label: 'Archive' },
+  { id: 'dream-detail', label: 'Dream Detail' },
+  { id: 'patterns', label: 'Patterns' },
+  { id: 'weekly-review', label: 'Weekly Review' },
+  { id: 'share', label: 'Share' },
+];
+
 function parseTags(value) {
   return value
     .split(',')
@@ -33,6 +56,17 @@ function parseTags(value) {
 
 function formatDate(value) {
   return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(new Date(value));
+}
+
+function formatProviderLabel(provider) {
+  if (provider === 'claude') return 'Claude';
+  return 'OpenAI';
+}
+
+function getDreamAnalysis(dream, provider) {
+  if (dream.aiAnalyses?.[provider]) return dream.aiAnalyses[provider];
+  if (provider === 'openai' && dream.aiAnalysis) return dream.aiAnalysis;
+  return null;
 }
 
 function buildFormFromMode(mode) {
@@ -90,24 +124,6 @@ function buildShareSummary(dreams, patterns) {
 }
 
 function Sidebar({ activeScreen, setActiveScreen, activeTab }) {
-  const links = [
-    { id: 'home', label: 'Home' },
-    { id: 'onboarding', label: 'Onboarding' },
-    { id: 'capture', label: 'Capture' },
-    { id: 'known-people', label: 'Known People' },
-    { id: 'reentry-start', label: 'Re-entry Start' },
-    { id: 'reentry-scene', label: 'Re-entry Scene' },
-    { id: 'reentry-summary', label: 'Re-entry Summary' },
-    { id: 'symbolic-flow', label: 'Symbolic Flow' },
-    { id: 'grounded-flow', label: 'Grounded Flow' },
-    { id: 'support-flow', label: 'Support Flow' },
-    { id: 'archive', label: 'Archive' },
-    { id: 'dream-detail', label: 'Dream Detail' },
-    { id: 'patterns', label: 'Patterns' },
-    { id: 'weekly-review', label: 'Weekly Review' },
-    { id: 'share', label: 'Therapist Share' },
-  ];
-
   return (
     <aside className="sidebar-shell">
       <div className="sidebar-head">
@@ -116,7 +132,7 @@ function Sidebar({ activeScreen, setActiveScreen, activeTab }) {
         <p>Next app router structure with local persistence, archive management, multi-step dreamwork flow, pattern summaries, therapist-share flows, and known-person inner-figure handling.</p>
       </div>
       <nav className="sidebar-nav">
-        {links.map((link) => (
+        {screenOptions.map((link) => (
           <button
             key={link.id}
             className={`sidebar-link ${activeScreen === link.id ? 'active' : ''}`}
@@ -161,27 +177,19 @@ function TabBar({ activeTab, setActiveScreen }) {
 }
 
 function MobileScreenNav({ activeScreen, setActiveScreen }) {
-  const mobileLinks = [
-    { id: 'home', label: 'Home' },
-    { id: 'archive', label: 'Archive' },
-    { id: 'dream-detail', label: 'Dream Detail' },
-    { id: 'patterns', label: 'Patterns' },
-    { id: 'weekly-review', label: 'Review' },
-  ];
-
   return (
-    <nav className="mobile-screen-nav" aria-label="Screen navigation">
-      {mobileLinks.map((link) => (
-        <button
-          key={link.id}
-          type="button"
-          className={`mobile-screen-link ${activeScreen === link.id ? 'active' : ''}`}
-          onClick={() => setActiveScreen(link.id)}
-        >
-          {link.label}
-        </button>
-      ))}
-    </nav>
+    <div className="mobile-screen-nav" aria-label="Screen navigation">
+      <label className="mobile-screen-switcher">
+        <span className="field-label">Jump to</span>
+        <select value={activeScreen} onChange={(event) => setActiveScreen(event.target.value)}>
+          {screenOptions.map((link) => (
+            <option key={link.id} value={link.id}>
+              {link.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
   );
 }
 
@@ -525,7 +533,16 @@ function ArchiveScreen({
   );
 }
 
-function DreamDetailScreen({ dream, setActiveScreen, onEditDream, onUpdateFollowThrough, onAnalyzeDream, analyzingDreamId }) {
+function DreamDetailScreen({
+  dream,
+  setActiveScreen,
+  onEditDream,
+  onUpdateFollowThrough,
+  onAnalyzeDream,
+  analyzingDreamId,
+  analysisProvider,
+  setAnalysisProvider,
+}) {
   if (!dream) {
     return (
       <div className="screen-shell">
@@ -540,16 +557,120 @@ function DreamDetailScreen({ dream, setActiveScreen, onEditDream, onUpdateFollow
     <div className="screen-shell">
       {(() => {
         const interpretation = deriveInterpretation(dream);
+        const activeAnalysis = getDreamAnalysis(dream, analysisProvider);
+        const openAiAnalysis = getDreamAnalysis(dream, 'openai');
+        const claudeAnalysis = getDreamAnalysis(dream, 'claude');
         return (
           <>
       <div className="eyebrow main">Dream Detail</div>
       <h1>{dream.title}</h1>
-      <p className="intro">This view gathers the raw dream, known-person reflection, re-entry material, and final integration question into one place.</p>
+      <p className="intro">This view brings the dream record, known-person reflection, re-entry material, and deeper analysis into one mobile-readable sequence.</p>
       <section className="hero-card">
         <div className="eyebrow">Saved {formatDate(dream.createdAt)}</div>
         <h3>{dream.prevailingEmotion}</h3>
         <p>Ending: {dream.ending}. Ending state: {dream.endingResolution}.</p>
       </section>
+      <section className="surface-card form-card">
+        <div className="eyebrow">Deep analysis</div>
+        <label>
+          <span className="field-label">Analysis provider</span>
+          <select value={analysisProvider} onChange={(event) => setAnalysisProvider(event.target.value)}>
+            {analysisProviders.map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {provider.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="analysis-provider-row">
+          <button className="primary-btn" type="button" onClick={() => onAnalyzeDream(dream.id, analysisProvider)} disabled={analyzingDreamId === dream.id}>
+            {analyzingDreamId === dream.id ? `Analyzing with ${formatProviderLabel(analysisProvider)}...` : `Run ${formatProviderLabel(analysisProvider)} analysis`}
+          </button>
+          {openAiAnalysis || claudeAnalysis ? (
+            <div className="provider-status-row">
+              <span className={`provider-chip ${openAiAnalysis ? 'active' : ''}`}>OpenAI {openAiAnalysis ? 'ready' : 'not run'}</span>
+              <span className={`provider-chip ${claudeAnalysis ? 'active' : ''}`}>Claude {claudeAnalysis ? 'ready' : 'not run'}</span>
+            </div>
+          ) : null}
+        </div>
+      </section>
+      {activeAnalysis ? (
+        <section className="surface-card deep-analysis-card">
+          <div className="eyebrow">{formatProviderLabel(analysisProvider)} analysis</div>
+          <h3>{activeAnalysis.primaryLens}</h3>
+          <p><strong>Source:</strong> {activeAnalysis.source}</p>
+          {activeAnalysis.fallbackReason ? <p><strong>Fallback reason:</strong> {activeAnalysis.fallbackReason}</p> : null}
+          <p><strong>{activeAnalysis.headline}</strong></p>
+          <p className="reading-lead">{activeAnalysis.reading}</p>
+          <div className="analysis-summary-grid">
+            <article className="analysis-summary-card">
+              <div className="field-label">Governing field</div>
+              <p>{activeAnalysis.governingField}</p>
+            </article>
+            <article className="analysis-summary-card">
+              <div className="field-label">Decisive turn</div>
+              <p>{activeAnalysis.decisiveTurn}</p>
+            </article>
+            <article className="analysis-summary-card">
+              <div className="field-label">Ending reading</div>
+              <p>{activeAnalysis.endingReading}</p>
+            </article>
+            <article className="analysis-summary-card">
+              <div className="field-label">Route</div>
+              <p>{activeAnalysis.routeReason}</p>
+              <p><strong>Secondary lens:</strong> {activeAnalysis.secondaryLens}. <strong>Confidence:</strong> {activeAnalysis.confidence}.</p>
+            </article>
+          </div>
+          <details className="analysis-details" open>
+            <summary>Route evidence and observations</summary>
+            <div className="analysis-details-body">
+              <article>
+                <div className="field-label">Route evidence</div>
+                <ul className="bullet-list">
+                  {(activeAnalysis.routeEvidence || []).map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </article>
+              <article>
+                <div className="field-label">Observations</div>
+                <ul className="bullet-list">
+                  {(activeAnalysis.observations || []).map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </article>
+            </div>
+          </details>
+          <details className="analysis-details">
+            <summary>Working hypotheses</summary>
+            <div className="analysis-details-body">
+              <ul className="bullet-list">
+                {(activeAnalysis.hypotheses || []).map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </div>
+          </details>
+          <details className="analysis-details">
+            <summary>Questions to hold and disconfirming cues</summary>
+            <div className="analysis-details-body">
+              <article>
+                <div className="field-label">Questions to hold</div>
+                <ul className="bullet-list">
+                  {(activeAnalysis.questionsToHold || []).map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </article>
+              <article>
+                <div className="field-label">Disconfirming cues</div>
+                <ul className="bullet-list">
+                  {(activeAnalysis.disconfirmingCues || []).map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </article>
+            </div>
+          </details>
+          <section className="analysis-integration-card">
+            <div className="field-label">Integration</div>
+            <p><strong>Micro-action:</strong> {activeAnalysis.microAction}</p>
+            <p><strong>Signal to track:</strong> {activeAnalysis.signalToTrack}</p>
+            <p><strong>Humility note:</strong> {activeAnalysis.humilityNote}</p>
+          </section>
+        </section>
+      ) : null}
       <section className="surface-card">
         <div className="eyebrow">Dream text</div>
         <p>{dream.narrative}</p>
@@ -605,66 +726,25 @@ function DreamDetailScreen({ dream, setActiveScreen, onEditDream, onUpdateFollow
             {interpretation.questions.map((item) => <li key={item}>{item}</li>)}
           </ul>
         </article>
-        <div className="inline-actions">
-          <button className="primary-btn small-btn" type="button" onClick={() => onAnalyzeDream(dream.id)} disabled={analyzingDreamId === dream.id}>
-            {analyzingDreamId === dream.id ? 'Analyzing...' : 'Run deeper analysis'}
-          </button>
-        </div>
       </section>
-      {dream.aiAnalysis ? (
-        <section className="surface-card">
-          <div className="eyebrow">OpenAI Analysis</div>
-          <h3>{dream.aiAnalysis.primaryLens}</h3>
-          <p><strong>Source:</strong> {dream.aiAnalysis.source}</p>
-          {dream.aiAnalysis.fallbackReason ? <p><strong>Fallback reason:</strong> {dream.aiAnalysis.fallbackReason}</p> : null}
-          <p>{dream.aiAnalysis.routeReason}</p>
-          <p><strong>Secondary lens:</strong> {dream.aiAnalysis.secondaryLens}. <strong>Confidence:</strong> {dream.aiAnalysis.confidence}.</p>
-          <p><strong>{dream.aiAnalysis.headline}</strong></p>
-          <p><strong>Atmosphere:</strong> {dream.aiAnalysis.atmosphere}</p>
-          <div className="interpretation-grid">
-            <article>
-              <div className="field-label">Route evidence</div>
-              <ul className="bullet-list">
-                {(dream.aiAnalysis.routeEvidence || []).map((item) => <li key={item}>{item}</li>)}
-              </ul>
-            </article>
-            <article>
-              <div className="field-label">Observations</div>
-              <ul className="bullet-list">
-                {(dream.aiAnalysis.observations || []).map((item) => <li key={item}>{item}</li>)}
-              </ul>
-            </article>
-            <article>
-              <div className="field-label">Hypotheses</div>
-              <ul className="bullet-list">
-                {(dream.aiAnalysis.hypotheses || []).map((item) => <li key={item}>{item}</li>)}
-              </ul>
-            </article>
-            <article>
-              <div className="field-label">Disconfirming cues</div>
-              <ul className="bullet-list">
-                {(dream.aiAnalysis.disconfirmingCues || []).map((item) => <li key={item}>{item}</li>)}
-              </ul>
-            </article>
-          </div>
+      <details className="surface-card app-reading-card">
+        <summary>App scaffold reading</summary>
+        <div className="analysis-details-body">
+          <p>This is the local app scaffold used for routing and fallback. It is useful as a baseline, but the external model analysis is the primary interpretive layer.</p>
           <article className="followup-section">
             <div className="field-label">Questions to hold</div>
             <ul className="bullet-list">
-              {(dream.aiAnalysis.questionsToHold || []).map((item) => <li key={item}>{item}</li>)}
+              {interpretation.questions.map((item) => <li key={item}>{item}</li>)}
             </ul>
           </article>
-          <article className="followup-section">
-            <div className="field-label">Humility note</div>
-            <p>{dream.aiAnalysis.humilityNote}</p>
-          </article>
-        </section>
-      ) : null}
+        </div>
+      </details>
       <section className="surface-card form-card">
         <div className="eyebrow">Follow-through defaults</div>
-        {dream.aiAnalysis ? (
+        {activeAnalysis ? (
           <>
-            <p><strong>Micro-action:</strong> {dream.aiAnalysis.microAction}</p>
-            <p><strong>Signal to track:</strong> {dream.aiAnalysis.signalToTrack}</p>
+            <p><strong>Micro-action:</strong> {activeAnalysis.microAction}</p>
+            <p><strong>Signal to track:</strong> {activeAnalysis.signalToTrack}</p>
           </>
         ) : (
           <>
@@ -844,6 +924,7 @@ function ShareScreen({ shareSummary, dreams, selectedShareIds, onToggleShareDrea
 
 export default function DreamSupportApp() {
   const [activeScreen, setActiveScreen] = useState('home');
+  const [analysisProvider, setAnalysisProvider] = useState('openai');
   const [onboardingIndex, setOnboardingIndex] = useState(0);
   const [dreams, setDreams] = useState(defaultDreams);
   const [form, setForm] = useState(buildFormFromMode('symbolic'));
@@ -864,6 +945,7 @@ export default function DreamSupportApp() {
     if (saved.reentryDraft) setReentryDraft(saved.reentryDraft);
     if (saved.followThroughDraft) setFollowThroughDraft(saved.followThroughDraft);
     if (saved.activeScreen) setActiveScreen(saved.activeScreen);
+    if (saved.analysisProvider) setAnalysisProvider(saved.analysisProvider);
     if (typeof saved.onboardingIndex === 'number') setOnboardingIndex(saved.onboardingIndex);
     if (saved.editingDreamId) setEditingDreamId(saved.editingDreamId);
     if (saved.selectedDreamId) setSelectedDreamId(saved.selectedDreamId);
@@ -873,8 +955,8 @@ export default function DreamSupportApp() {
   }, []);
 
   useEffect(() => {
-    saveState({ dreams, form, reentryDraft, followThroughDraft, activeScreen, onboardingIndex, editingDreamId, selectedDreamId, archiveQuery, selectedTag, shareIds });
-  }, [dreams, form, reentryDraft, followThroughDraft, activeScreen, onboardingIndex, editingDreamId, selectedDreamId, archiveQuery, selectedTag, shareIds]);
+    saveState({ dreams, form, reentryDraft, followThroughDraft, activeScreen, analysisProvider, onboardingIndex, editingDreamId, selectedDreamId, archiveQuery, selectedTag, shareIds });
+  }, [dreams, form, reentryDraft, followThroughDraft, activeScreen, analysisProvider, onboardingIndex, editingDreamId, selectedDreamId, archiveQuery, selectedTag, shareIds]);
 
   const activeTab = useMemo(() => {
     if (['archive', 'first-dream-saved', 'dream-detail'].includes(activeScreen)) return 'archive';
@@ -1005,7 +1087,7 @@ export default function DreamSupportApp() {
     );
   }
 
-  async function handleAnalyzeDream(id) {
+  async function handleAnalyzeDream(id, provider = analysisProvider) {
     const dream = dreams.find((entry) => entry.id === id);
     if (!dream) return;
     setAnalyzingDreamId(id);
@@ -1013,14 +1095,25 @@ export default function DreamSupportApp() {
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dream }),
+        body: JSON.stringify({ dream, provider }),
       });
       const payload = await response.json();
       if (!response.ok || !payload.analysis) {
         throw new Error(payload.error || 'Analysis request failed.');
       }
       setDreams((existing) =>
-        existing.map((entry) => (entry.id === id ? { ...entry, aiAnalysis: payload.analysis } : entry)),
+        existing.map((entry) =>
+          entry.id === id
+            ? {
+                ...entry,
+                aiAnalysis: provider === 'openai' ? payload.analysis : entry.aiAnalysis,
+                aiAnalyses: {
+                  ...(entry.aiAnalyses || {}),
+                  [provider]: payload.analysis,
+                },
+              }
+            : entry,
+        ),
       );
     } catch (error) {
       const fallback = deriveInterpretation(dream);
@@ -1029,18 +1122,44 @@ export default function DreamSupportApp() {
           entry.id === id
             ? {
                 ...entry,
-                aiAnalysis: {
+                aiAnalysis: provider === 'openai' ? {
                   source: 'local-fallback',
+                  provider,
                   fallbackReason: error instanceof Error ? error.message : 'Unknown analysis error.',
                   ...fallback,
                   primaryLens: fallback.lens,
                   confidence: fallback.routeConfidence || 'medium',
+                  governingField: `The dream is organized around ${dream.prevailingEmotion || 'an emotionally charged field'} rather than around symbol labels alone.`,
+                  decisiveTurn: dream.reentry?.affectShift || 'The key turn should be clarified through re-entry.',
+                  endingReading: `The ending reads as ${dream.endingResolution || 'still open'}, which suggests the process remains active.`,
+                  reading: `${fallback.headline} The prevailing emotion appears to be ${dream.prevailingEmotion || 'emotionally mixed'}, and the ending reads as ${dream.endingResolution || 'still open'}.`,
                   questionsToHold: fallback.questions,
                   disconfirmingCues: [
                     'This fallback analysis is local and should be revised once server-side analysis is available.',
                   ],
                   humilityNote: 'Treat this as a working lens, not a verdict.',
                   atmosphere: dream.prevailingEmotion,
+                } : entry.aiAnalysis,
+                aiAnalyses: {
+                  ...(entry.aiAnalyses || {}),
+                  [provider]: {
+                    source: 'local-fallback',
+                    provider,
+                    fallbackReason: error instanceof Error ? error.message : 'Unknown analysis error.',
+                    ...fallback,
+                    primaryLens: fallback.lens,
+                    confidence: fallback.routeConfidence || 'medium',
+                    governingField: `The dream is organized around ${dream.prevailingEmotion || 'an emotionally charged field'} rather than around symbol labels alone.`,
+                    decisiveTurn: dream.reentry?.affectShift || 'The key turn should be clarified through re-entry.',
+                    endingReading: `The ending reads as ${dream.endingResolution || 'still open'}, which suggests the process remains active.`,
+                    reading: `${fallback.headline} The prevailing emotion appears to be ${dream.prevailingEmotion || 'emotionally mixed'}, and the ending reads as ${dream.endingResolution || 'still open'}.`,
+                    questionsToHold: fallback.questions,
+                    disconfirmingCues: [
+                      'This fallback analysis is local and should be revised once server-side analysis is available.',
+                    ],
+                    humilityNote: 'Treat this as a working lens, not a verdict.',
+                    atmosphere: dream.prevailingEmotion,
+                  },
                 },
               }
             : entry,
@@ -1107,6 +1226,8 @@ export default function DreamSupportApp() {
         onUpdateFollowThrough={handleUpdateFollowThrough}
         onAnalyzeDream={handleAnalyzeDream}
         analyzingDreamId={analyzingDreamId}
+        analysisProvider={analysisProvider}
+        setAnalysisProvider={setAnalysisProvider}
       />
     );
   }
