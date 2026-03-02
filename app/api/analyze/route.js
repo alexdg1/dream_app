@@ -28,6 +28,32 @@ function extractClaudeResponseText(payload) {
   return texts.join('\n').trim();
 }
 
+function parseJsonFromText(text) {
+  const trimmed = text.trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch {}
+
+  const unfenced = trimmed
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim();
+  try {
+    return JSON.parse(unfenced);
+  } catch {}
+
+  const firstBrace = unfenced.indexOf('{');
+  const lastBrace = unfenced.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    const candidate = unfenced.slice(firstBrace, lastBrace + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch {}
+  }
+
+  throw new Error(`Response was not valid JSON. First 180 chars: ${trimmed.slice(0, 180)}`);
+}
+
 function buildFallbackAnalysis(dream, reason, provider = 'openai') {
   const local = deriveInterpretation(dream);
   return {
@@ -92,7 +118,7 @@ async function requestOpenAiStructuredAnalysis(apiKey, dream, model) {
   const payload = await response.json();
   const text = extractOpenAiResponseText(payload);
   if (!text) throw new Error('Structured output returned no text.');
-  return JSON.parse(text);
+  return parseJsonFromText(text);
 }
 
 async function requestOpenAiJsonModeAnalysis(apiKey, dream, model) {
@@ -133,7 +159,7 @@ async function requestOpenAiJsonModeAnalysis(apiKey, dream, model) {
   const payload = await response.json();
   const text = extractOpenAiResponseText(payload);
   if (!text) throw new Error('JSON mode returned no text.');
-  return JSON.parse(text);
+  return parseJsonFromText(text);
 }
 
 async function requestClaudeAnalysis(apiKey, dream, model) {
@@ -166,7 +192,7 @@ async function requestClaudeAnalysis(apiKey, dream, model) {
   const payload = await response.json();
   const text = extractClaudeResponseText(payload);
   if (!text) throw new Error('Claude returned no text.');
-  return JSON.parse(text);
+  return parseJsonFromText(text);
 }
 
 function getProviderConfig(requestedProvider) {
