@@ -34,6 +34,7 @@ const screenOptions = [
   { id: 'onboarding', label: 'Onboarding' },
   { id: 'capture', label: 'Capture' },
   { id: 'known-people', label: 'Known People' },
+  { id: 'reentry-decision', label: 'Re-entry Decision' },
   { id: 'reentry-start', label: 'Re-entry Start' },
   { id: 'reentry-scene', label: 'Re-entry Scene' },
   { id: 'reentry-summary', label: 'Re-entry Summary' },
@@ -333,8 +334,56 @@ function KnownPeopleScreen({ form, setForm, setActiveScreen }) {
       </section>
       <div className="button-stack two-up">
         <button className="subtle-btn" type="button" onClick={() => setActiveScreen('capture')}>Back</button>
-        <button className="primary-btn" type="button" onClick={() => setActiveScreen('reentry-start')}>Continue to re-entry</button>
+        <button className="primary-btn" type="button" onClick={() => setActiveScreen('reentry-decision')}>Continue</button>
       </div>
+    </div>
+  );
+}
+
+function ReentryDecisionScreen({ form, reentryDraft, saveDream, setActiveScreen, editMode }) {
+  const hasReentryData = Boolean(
+    reentryDraft.sceneReplay ||
+      reentryDraft.bodySensation ||
+      reentryDraft.affectShift ||
+      reentryDraft.strangeReaction ||
+      reentryDraft.smallDetail ||
+      reentryDraft.integrationQuestion,
+  );
+
+  return (
+    <div className="screen-shell">
+      <div className="eyebrow main">Decision Point</div>
+      <h1>Go deeper, or interpret from what you already have.</h1>
+      <p className="intro">Re-entry is optional. Some users will want an interpretation immediately. Others will want to return to the dream first and recover more living detail.</p>
+      <section className="hero-card">
+        <div className="eyebrow">Why re-entry can change the reading</div>
+        <h3>Active imagination often reveals what the first retelling leaves out.</h3>
+        <p>By replaying the dream in present tense and staying with the image, users often recover body sensation, emotional shifts, strange reactions, and small details that materially change the interpretation. The app should explain that re-entry is not extra homework; it is often where the dream becomes psychologically alive.</p>
+      </section>
+      <section className="surface-card">
+        <div className="eyebrow">Current capture</div>
+        <p><strong>Prevailing emotion:</strong> {form.prevailingEmotion || 'Not captured yet.'}</p>
+        <p><strong>Ending state:</strong> {form.endingResolution || 'Not captured yet.'}</p>
+        <p><strong>Known person reflection:</strong> {form.knownPersonName ? `${form.knownPersonName} as ${form.knownPersonAsPart || form.knownPersonAssociations || 'an inner figure still to clarify'}.` : 'No known-person reflection captured.'}</p>
+        {hasReentryData ? <p><strong>Saved re-entry material:</strong> You already have some replay notes and can edit them before saving.</p> : null}
+      </section>
+      <div className="decision-stack">
+        <button className="surface-card decision-card" type="button" onClick={() => setActiveScreen('reentry-start')}>
+          <div className="eyebrow">Option A</div>
+          <h3>Do re-entry first</h3>
+          <p>Replay the dream scene, notice body sensation, affect shifts, and what becomes more vivid.</p>
+        </button>
+        <button className="surface-card decision-card" type="button" onClick={saveDream}>
+          <div className="eyebrow">Option B</div>
+          <h3>Go straight to interpretation</h3>
+          <p>Save the dream now and work from the current capture, known-person reflection, prevailing emotion, and ending state.</p>
+        </button>
+      </div>
+      <div className="button-stack two-up">
+        <button className="subtle-btn" type="button" onClick={() => setActiveScreen('known-people')}>Back</button>
+        {hasReentryData ? <button className="subtle-btn" type="button" onClick={() => setActiveScreen('reentry-summary')}>Review saved re-entry</button> : <span />}
+      </div>
+      {editMode ? <p className="inline-note">Updating the dream from either path will keep the same record.</p> : null}
     </div>
   );
 }
@@ -351,7 +400,7 @@ function ReentryStartScreen({ form, setActiveScreen }) {
         <p>{form.mode === 'symbolic' ? 'Pay close attention to any emotional mismatch, strange calmness, or sudden shift in atmosphere.' : form.mode === 'grounded' ? 'Notice where the dream turns emotional pressure into a practical problem.' : 'If the dream is still physically activating, keep the recall narrow and stabilizing.'}</p>
       </section>
       <div className="button-stack two-up">
-        <button className="subtle-btn" type="button" onClick={() => setActiveScreen('known-people')}>Back</button>
+        <button className="subtle-btn" type="button" onClick={() => setActiveScreen('reentry-decision')}>Back</button>
         <button className="primary-btn" type="button" onClick={() => setActiveScreen('reentry-scene')}>Replay scene</button>
       </div>
     </div>
@@ -1189,6 +1238,7 @@ export default function DreamSupportApp() {
   if (activeScreen === 'onboarding') content = <OnboardingScreen onboardingIndex={onboardingIndex} setOnboardingIndex={setOnboardingIndex} setActiveScreen={setActiveScreen} />;
   if (activeScreen === 'capture') content = <CaptureScreen form={form} setForm={setForm} setActiveScreen={setActiveScreen} editMode={Boolean(editingDreamId)} />;
   if (activeScreen === 'known-people') content = <KnownPeopleScreen form={form} setForm={setForm} setActiveScreen={setActiveScreen} />;
+  if (activeScreen === 'reentry-decision') content = <ReentryDecisionScreen form={form} reentryDraft={reentryDraft} saveDream={saveDream} setActiveScreen={setActiveScreen} editMode={Boolean(editingDreamId)} />;
   if (activeScreen === 'reentry-start') content = <ReentryStartScreen form={form} setActiveScreen={setActiveScreen} />;
   if (activeScreen === 'reentry-scene') content = <ReentrySceneScreen reentryDraft={reentryDraft} setReentryDraft={setReentryDraft} setActiveScreen={setActiveScreen} />;
   if (activeScreen === 'reentry-summary') content = <ReentrySummaryScreen form={form} reentryDraft={reentryDraft} saveDream={saveDream} setActiveScreen={setActiveScreen} editMode={Boolean(editingDreamId)} />;

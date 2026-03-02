@@ -124,6 +124,21 @@ button {
 }
 .hero-card { background: radial-gradient(circle at right top, rgba(220,233,227,0.55), transparent 30%), linear-gradient(180deg, rgba(255,255,255,0.74), rgba(244,236,226,0.96)); }
 .card-grid, .button-stack, .mode-row, .timeline-list { display: grid; gap: 12px; }
+.decision-stack {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.decision-card {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.inline-note {
+  font-family: var(--sans);
+  color: var(--muted);
+  margin: 10px 0 0;
+}
 .tag-row {
   display: flex;
   flex-wrap: wrap;
